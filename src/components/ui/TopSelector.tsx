@@ -26,7 +26,7 @@ export const TopSelector: React.FC<TopSelectorProps> = ({ selectedCellId, onSele
       overflowX: 'auto',
       whiteSpace: 'nowrap',
       WebkitOverflowScrolling: 'touch'
-    }} className="hide-scrollbar">
+    }} className="top-selector hide-scrollbar">
       {cellsData.map((cell) => {
         let icon = '🔬';
         if (cell.id === 'plant-cell') icon = '🌿';

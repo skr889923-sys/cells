@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Sphere, MeshTransmissionMaterial, Html, RoundedBox, Cylinder, Torus } from '@react-three/drei';
+import { Sphere, MeshTransmissionMaterial, Html, RoundedBox, Cylinder } from '@react-three/drei';
 import * as THREE from 'three';
 import type { CellData } from '../../data/cellsData';
 
@@ -13,10 +13,36 @@ interface CellModelProps {
   showLabels: boolean;
 }
 
+type StopEvent = {
+  stopPropagation: () => void;
+};
+
+const seededValue = (index: number, salt: number) => {
+  const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+};
+
 export const CellModel: React.FC<CellModelProps> = ({ 
   cellData, selectedOrganelleId, onSelectOrganelle, viewMode, clippingPlanes, showLabels
 }) => {
   const group = useRef<THREE.Group>(null);
+  const granulePositions = useMemo(
+    () => Array.from({ length: 30 }, (_, index) => [
+      (seededValue(index, 1) - 0.5) * 4,
+      (seededValue(index, 2) - 0.5) * 4,
+      (seededValue(index, 3) - 0.5) * 4
+    ] as [number, number, number]),
+    []
+  );
+  const hemoglobinParticles = useMemo(
+    () => Array.from({ length: 100 }, (_, index) => {
+      const r = seededValue(index, 4) * 2;
+      const theta = seededValue(index, 5) * 2 * Math.PI;
+      const y = (seededValue(index, 6) - 0.5) * (r < 1.2 ? 0.4 : 1.2);
+      return [r * Math.cos(theta), y, r * Math.sin(theta)] as [number, number, number];
+    }),
+    []
+  );
   
   useFrame((state) => {
     if (group.current) {
@@ -35,7 +61,7 @@ export const CellModel: React.FC<CellModelProps> = ({
   const isSelected = (id: string) => selectedOrganelleId === id;
   const isIsolated = viewMode === 'isolated' && selectedOrganelleId;
 
-  const handleClick = (e: any, id: string) => {
+  const handleClick = (e: StopEvent, id: string) => {
     e.stopPropagation();
     onSelectOrganelle(isSelected(id) ? null : id);
   };
@@ -258,8 +284,8 @@ export const CellModel: React.FC<CellModelProps> = ({
         )}
         {(!isIsolated || isSelected('granules')) && (
           <group onClick={(e) => handleClick(e, 'granules')}>
-            {Array.from({length: 30}).map((_, i) => (
-              <Sphere key={i} args={[0.15, 16, 16]} position={[(Math.random()-0.5)*4, (Math.random()-0.5)*4, (Math.random()-0.5)*4]}>
+            {granulePositions.map((position, i) => (
+              <Sphere key={i} args={[0.15, 16, 16]} position={position}>
                 <meshPhysicalMaterial color={getOrganelleColor('granules')} roughness={0.2} clearcoat={0.8} clippingPlanes={clippingPlanes} />
               </Sphere>
             ))}
@@ -288,16 +314,11 @@ export const CellModel: React.FC<CellModelProps> = ({
         {(!isIsolated || isSelected('hemoglobin')) && (
           <group onClick={(e) => handleClick(e, 'hemoglobin')} rotation={[Math.PI/2, 0, 0]}>
             {/* Inner particles to represent hemoglobin */}
-            {Array.from({length: 100}).map((_, i) => {
-              const r = Math.random() * 2;
-              const theta = Math.random() * 2 * Math.PI;
-              const y = (Math.random() - 0.5) * (r < 1.2 ? 0.4 : 1.2);
-              return (
-                <Sphere key={i} args={[0.08, 8, 8]} position={[r * Math.cos(theta), y, r * Math.sin(theta)]}>
+            {hemoglobinParticles.map((position, i) => (
+                <Sphere key={i} args={[0.08, 8, 8]} position={position}>
                   <meshBasicMaterial color={getOrganelleColor('hemoglobin')} />
                 </Sphere>
-              )
-            })}
+            ))}
             {isSelected('hemoglobin') && renderTooltip('hemoglobin', false)}
           </group>
         )}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { Scene } from './components/Scene';
 import { cellsData } from './data/cellsData';
 import './index.css';
@@ -36,9 +37,9 @@ function App() {
   };
 
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: themeColor, transition: 'background-color 0.5s ease' }}>
-      {/* 3D Scene - Full Screen */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}>
+    <div className="app-shell" style={{ backgroundColor: themeColor }}>
+      <div className="scene-backdrop" aria-hidden="true" />
+      <div className="scene-layer">
         <Scene 
           cellData={activeCell} 
           selectedOrganelleId={selectedOrganelleId}
@@ -89,11 +90,17 @@ function App() {
       )}
 
       {showCompareModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: '80%', maxWidth: '900px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} className="glass-panel">
-            <button onClick={() => setShowCompareModal(false)} style={{ position: 'absolute', top: '1rem', left: '1rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.2rem', cursor: 'pointer', zIndex: 101, boxShadow: 'var(--shadow-sm)', color: 'var(--color-text-main)' }}>✖</button>
-            <div style={{ overflowY: 'auto', padding: '2rem' }} className="hide-scrollbar">
-              <CompareCellsPanel />
+        <div className="modal-backdrop">
+          <div className="glass-panel compare-modal">
+            <button
+              aria-label="إغلاق المقارنة"
+              onClick={() => setShowCompareModal(false)}
+              className="modal-close"
+            >
+              <X size={20} strokeWidth={2} />
+            </button>
+            <div className="modal-scroll hide-scrollbar">
+              <CompareCellsPanel activeCell={activeCell} />
             </div>
           </div>
         </div>

@@ -10,6 +10,14 @@ export interface Organelle {
   imageUrl?: string; // Image for the info card
 }
 
+export interface DiagnosticCase {
+  id: string;
+  scenario: string;
+  options: string[];
+  correctAnswerIndex: number;
+  explanation: string;
+}
+
 export interface MicroscopeView {
   id: string;
   type: string;
@@ -31,14 +39,16 @@ export interface CellData {
   microscopeViews: MicroscopeView[];
 }
 
+const localAsset = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
+
 export const cellsData: CellData[] = [
   {
     id: 'neuron-cell',
     title: 'خلية عصبية (عصبون)',
     category: 'خلية عصبية',
     description: 'الخلايا العصبية هي الوحدات الأساسية للدماغ والجهاز العصبي. تنقل النبضات الكهربائية السريعة إلى الخلايا الأخرى.',
-    imageUrl: '/cells/neuron_cell_1779685899586.png',
-    modelUrl: '/3D/neuron+model+3d.glb',
+    imageUrl: localAsset('cells/neuron_cell_1779685899586.png'),
+    modelUrl: localAsset('3D/neuron+model+3d.glb'),
     cameraPosition: [-1.023, 0.13, -0.265],
     cameraTarget: [0.03, -0.012, 0.015],
     organelles: [
@@ -116,8 +126,8 @@ export const cellsData: CellData[] = [
     title: 'خلية حيوانية',
     category: 'خلية حقيقية النواة',
     description: 'الخلية الحيوانية هي الوحدة الأساسية لأجسام الحيوانات والإنسان. تفتقر للجدار الخلوي الخارجي مما يمنحها مرونة عالية، وتحتوي على عضيات متعددة متخصصة.',
-    imageUrl: '/cells/animal_cell_1779685912436.png',
-    modelUrl: '/3D/cell+model+3d (2).glb',
+    imageUrl: localAsset('cells/animal_cell_1779685912436.png'),
+    modelUrl: localAsset('3D/cell+model+3d (2).glb'),
     initialRotation: [0, Math.PI, 0],
     cameraPosition: [-1.235, 0.735, 0.39],
     cameraTarget: [-0.006, -0.008, -0.008],
@@ -185,8 +195,8 @@ export const cellsData: CellData[] = [
     title: 'خلية نباتية',
     category: 'خلية حقيقية النواة',
     description: 'الخلايا النباتية تتميز بجدار خلوي صلب وبلاستيدات خضراء تقوم بالبناء الضوئي، وفجوة عصارية مركزية كبيرة.',
-    imageUrl: '/cells/plant_cell_1779685924937.png',
-    modelUrl: '/3D/cell+model+3d_Clone1.glb',
+    imageUrl: localAsset('cells/plant_cell_1779685924937.png'),
+    modelUrl: localAsset('3D/cell+model+3d_Clone1.glb'),
     cameraPosition: [0.054, 1.042, -0.784],
     cameraTarget: [0.001, -0.007, 0.008],
     organelles: [
@@ -253,8 +263,8 @@ export const cellsData: CellData[] = [
     title: 'خلية بكتيرية',
     category: 'بدائية النواة',
     description: 'كائنات وحيدة الخلية بدائية النواة. لا تمتلك نواة حقيقية محاطة بغشاء، وتتميز بوجود كبسولة خارجية وسوط للحركة.',
-    imageUrl: '/cells/bacterial_cell_1779685934742.png',
-    modelUrl: '/3D/bacterium+3d+model (2).glb',
+    imageUrl: localAsset('cells/bacterial_cell_1779685934742.png'),
+    modelUrl: localAsset('3D/bacterium+3d+model (2).glb'),
     cameraPosition: [-1.044, -0.017, -0.785],
     cameraTarget: [-0.007, -0.004, 0.129],
     organelles: [
@@ -321,8 +331,8 @@ export const cellsData: CellData[] = [
     title: 'كرية الدم الحمراء',
     category: 'خلايا الدم',
     description: 'خلايا متخصصة جداً في نقل الأكسجين. تفتقر في مرحلة نضجها إلى النواة ومعظم العضيات لتوفير مساحة كافية لبروتين الهيموجلوبين.',
-    imageUrl: '/cells/red_blood_cell_1779685947823.png',
-    modelUrl: '/3D/red+liquid+ring+3d+model.glb',
+    imageUrl: localAsset('cells/red_blood_cell_1779685947823.png'),
+    modelUrl: localAsset('3D/red+liquid+ring+3d+model.glb'),
     cameraPosition: [-0.555, 1.494, -1.83],
     cameraTarget: [-0.003, 0, 0.005],
     organelles: [
@@ -367,8 +377,8 @@ export const cellsData: CellData[] = [
     title: 'خلية دم بيضاء',
     category: 'مناعية',
     description: 'خلايا الدم البيضاء هي جنود جهاز المناعة، تدافع عن الجسم ضد العدوى.',
-    imageUrl: '/cells/white_blood_cell_1779685987203.png',
-    modelUrl: '/3D/virus+3d+model (2).glb',
+    imageUrl: localAsset('cells/white_blood_cell_1779685987203.png'),
+    modelUrl: localAsset('3D/virus+3d+model (2).glb'),
     organelles: [
       { id: 'segmented-nucleus', name: 'نواة مفصصة', function: 'تنظم وظائف الخلية.', medicalImportance: 'تستخدم لتشخيص نوع العدوى.', color: '#845ef7' }
     ],
@@ -379,8 +389,8 @@ export const cellsData: CellData[] = [
     title: 'خلية عضلية هيكلية',
     category: 'عضلية',
     description: 'الألياف العضلية الهيكلية هي خلايا أسطوانية طويلة مسؤولة عن الحركة الإرادية.',
-    imageUrl: '/cells/skeletal_muscle_cell_1779686001990.png',
-    modelUrl: '/3D/muscle+cross-section+3d+model.glb',
+    imageUrl: localAsset('cells/skeletal_muscle_cell_1779686001990.png'),
+    modelUrl: localAsset('3D/muscle+cross-section+3d+model.glb'),
     cameraPosition: [-1.057, 0.191, 0.645],
     cameraTarget: [0.002, -0.01, 0.003],
     organelles: [
@@ -402,8 +412,8 @@ export const cellsData: CellData[] = [
     title: 'حيوان منوي (خلية منوية)',
     category: 'تكاثرية',
     description: 'خلية متخصصة للتكاثر تتميز برأس يحتوي على المادة الوراثية وسوط طويل للحركة.',
-    imageUrl: '/cells/sperm_cell_1779686015021.png',
-    modelUrl: '/3D/cellular+organism+3d+model.glb',
+    imageUrl: localAsset('cells/sperm_cell_1779686015021.png'),
+    modelUrl: localAsset('3D/cellular+organism+3d+model.glb'),
     organelles: [
       { id: 'flagellum', name: 'السوط', function: 'يساعد الحيوان المنوي على السباحة نحو البويضة.', medicalImportance: 'ضعف الحركة يسبب العقم.', color: '#a5d8ff' }
     ],
@@ -414,8 +424,8 @@ export const cellsData: CellData[] = [
     title: 'خلية عظمية (Osteocyte)',
     category: 'عظمية',
     description: 'الخلية العظمية توجد داخل تجاويف في النسيج العظمي وتساعد في الحفاظ على المادة الخلالية للعظم.',
-    imageUrl: '/cells/osteocyte_cell_1779686026819.png',
-    modelUrl: '/3D/osteocyte+bone+cell+3d+model.glb',
+    imageUrl: localAsset('cells/osteocyte_cell_1779686026819.png'),
+    modelUrl: localAsset('3D/osteocyte+bone+cell+3d+model.glb'),
     cameraPosition: [-1.058, -0.001, -1.01],
     cameraTarget: [-0.004, 0.015, 0],
     organelles: [
@@ -429,7 +439,7 @@ export const cellsData: CellData[] = [
     title: 'خلية كيراتينية (Keratinocyte)',
     category: 'جلدية',
     description: 'الخلايا الكيراتينية تشكل الجزء الأكبر من البشرة وتنتج الكيراتين الذي يحمي الجلد.',
-    imageUrl: '/cells/keratinocyte_cell_1779686038687.png',
+    imageUrl: localAsset('cells/keratinocyte_cell_1779686038687.png'),
     organelles: [
       { id: 'keratin', name: 'ألياف الكيراتين', function: 'حماية وتوفير بنية صلبة للجلد.', medicalImportance: 'نقصها يسبب أمراض الجلد.', color: '#fcc419' }
     ],
@@ -440,8 +450,8 @@ export const cellsData: CellData[] = [
     title: 'خلية عضلية قلبية',
     category: 'عضلية',
     description: 'خلايا متفرعة ومخططة تشكل نسيج القلب. تنقبض بشكل لا إرادي لضخ الدم، وتتميز بقدرتها على توليد نبضاتها الكهربائية الخاصة.',
-    imageUrl: '/cells/cardiomyocyte_cell_1779686078434.png',
-    modelUrl: '/3D/blood+vessel+3d+model.glb',
+    imageUrl: localAsset('cells/cardiomyocyte_cell_1779686078434.png'),
+    modelUrl: localAsset('3D/blood+vessel+3d+model.glb'),
     cameraPosition: [0.617, 0.21, 0.785],
     cameraTarget: [0.002, -0.041, 0.015],
     organelles: [
@@ -497,8 +507,8 @@ export const cellsData: CellData[] = [
     title: 'خلية دهنية (Adipocyte)',
     category: 'دهنية',
     description: 'الخلايا الدهنية متخصصة في تخزين الطاقة على شكل دهون.',
-    imageUrl: '/cells/adipocyte_cell_1779686093890.png',
-    modelUrl: '/3D/adipocyte+3d+model.glb',
+    imageUrl: localAsset('cells/adipocyte_cell_1779686093890.png'),
+    modelUrl: localAsset('3D/adipocyte+3d+model.glb'),
     cameraPosition: [-1.617, -0.049, -0.609],
     cameraTarget: [-0.002, 0.008, 0.008],
     organelles: [
@@ -512,7 +522,7 @@ export const cellsData: CellData[] = [
     title: 'خلية غضروفية (Chondrocyte)',
     category: 'غضروفية',
     description: 'الخلايا الوحيدة الموجودة في الغضروف السليم، وتفرز وتحافظ على مصفوفة الغضروف.',
-    imageUrl: '/cells/chondrocyte_cell_1779686105714.png',
+    imageUrl: localAsset('cells/chondrocyte_cell_1779686105714.png'),
     organelles: [
       { id: 'matrix', name: 'المصفوفة الغضروفية', function: 'توفير مرونة ودعم للمفاصل.', medicalImportance: 'تأكلها يسبب التهاب المفاصل.', color: '#a5d8ff' }
     ],
@@ -523,8 +533,8 @@ export const cellsData: CellData[] = [
     title: 'خلية معوية (Enterocyte)',
     category: 'ظهارية',
     description: 'خلايا تمتص العناصر الغذائية في الأمعاء وتتميز بوجود زغيبات كثيفة على سطحها.',
-    imageUrl: '/cells/enterocyte_cell_1779686119382.png',
-    modelUrl: '/3D/cell+model+3d+model.glb',
+    imageUrl: localAsset('cells/enterocyte_cell_1779686119382.png'),
+    modelUrl: localAsset('3D/cell+model+3d+model.glb'),
     cameraPosition: [-1.58, 0.102, -1.556],
     cameraTarget: [-0.003, 0.013, 0.003],
     organelles: [
@@ -537,7 +547,7 @@ export const cellsData: CellData[] = [
     title: 'خلية بيتا البنكرياسية',
     category: 'غدية',
     description: 'خلايا في البنكرياس تنتج وتخزن وتفرز هرمون الأنسولين.',
-    imageUrl: '/cells/pancreatic_beta_cell_1779686130291.png',
+    imageUrl: localAsset('cells/pancreatic_beta_cell_1779686130291.png'),
     organelles: [
       { id: 'insulin-vesicles', name: 'حويصلات الأنسولين', function: 'تخزين وإفراز الأنسولين لضبط سكر الدم.', medicalImportance: 'تدميرها يسبب مرض السكري من النوع 1.', color: '#20c997' }
     ],

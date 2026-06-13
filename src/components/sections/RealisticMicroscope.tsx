@@ -1,4 +1,15 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  Aperture,
+  Crosshair,
+  Focus,
+  Lightbulb,
+  Move,
+  RotateCcw,
+  ScanLine,
+  SlidersHorizontal,
+  X
+} from 'lucide-react';
 import type { CellData } from '../../data/cellsData';
 import { MicroscopeScene } from './MicroscopeScene';
 
@@ -7,192 +18,295 @@ interface RealisticMicroscopeProps {
   onClose: () => void;
 }
 
-export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ activeCell, onClose }) => {
-  const [zoomLevel, setZoomLevel] = useState<number>(1); // 1, 2.5, 5
-  const [focus, setFocus] = useState<number>(50); // 0-100, 50 is perfect
-  const [lighting, setLighting] = useState<number>(50); // 0-100, 50 is default
+interface ObjectiveLens {
+  label: string;
+  scale: number;
+  aperture: string;
+  tint: string;
+}
 
-  // Generate objective lenses
-  const lenses = [
-    { label: '10x', scale: 1 },
-    { label: '40x', scale: 2.5 },
-    { label: '100x', scale: 5 }
-  ];
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const objectiveLenses: ObjectiveLens[] = [
+  { label: '10x', scale: 1, aperture: 'NA 0.25', tint: '#5c9ce6' },
+  { label: '40x', scale: 2.5, aperture: 'NA 0.65', tint: '#d4a24f' },
+  { label: '100x', scale: 5, aperture: 'Oil NA 1.25', tint: '#d15f61' }
+];
+
+export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ activeCell, onClose }) => {
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [coarseFocus, setCoarseFocus] = useState<number>(50);
+  const [fineFocus, setFineFocus] = useState<number>(50);
+  const [lighting, setLighting] = useState<number>(58);
+  const [condenser, setCondenser] = useState<number>(62);
+  const [stage, setStage] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    stageX: number;
+    stageY: number;
+  } | null>(null);
+
+  const activeLens = useMemo(
+    () => objectiveLenses.find((lens) => lens.scale === zoomLevel) ?? objectiveLenses[0],
+    [zoomLevel]
+  );
+  const effectiveFocus = clamp(fineFocus + (coarseFocus - 50) * 0.36, 0, 100);
+  const focusError = Math.abs(effectiveFocus - 50);
+  const focusPercent = clamp(Math.round(100 - focusError * 2), 0, 100);
+  const focusBlur = Math.min(focusError * 0.12, 7.5);
+  const lightLevel = clamp(lighting / 100, 0.08, 1.2);
+  const condenserLevel = clamp(condenser / 100, 0.15, 1);
+
+  const fieldStyle = {
+    '--focus-blur': `${focusBlur}px`,
+    '--light-level': String(lightLevel),
+    '--condenser-size': `${38 + condenserLevel * 44}%`,
+    '--lens-tint': activeLens.tint
+  } as React.CSSProperties & Record<string, string>;
+
+  const updateStage = (nextX: number, nextY: number) => {
+    setStage({
+      x: clamp(nextX, -1.4, 1.4),
+      y: clamp(nextY, -1.4, 1.4)
+    });
+  };
+
+  const handleFieldPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      stageX: stage.x,
+      stageY: stage.y
+    };
+  };
+
+  const handleFieldPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const sensitivity = zoomLevel === 5 ? 230 : zoomLevel === 2.5 ? 170 : 130;
+    updateStage(
+      drag.stageX + (event.clientX - drag.x) / sensitivity,
+      drag.stageY - (event.clientY - drag.y) / sensitivity
+    );
+  };
+
+  const handleFieldPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) {
+      dragRef.current = null;
+    }
+  };
+
+  const resetMicroscope = () => {
+    setZoomLevel(1);
+    setCoarseFocus(50);
+    setFineFocus(50);
+    setLighting(58);
+    setCondenser(62);
+    setStage({ x: 0, y: 0 });
+  };
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: '#050505',
-      zIndex: 99999,
-      display: 'flex',
-      flexDirection: 'row',
-      overflow: 'hidden'
-    }}>
-      {/* Controls Sidebar */}
-      <div className="glass-panel" style={{
-        width: '320px',
-        padding: '2rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2rem',
-        borderRight: '1px solid rgba(255,255,255,0.1)',
-        backgroundColor: 'rgba(20,20,20,0.85)',
-        color: '#fff',
-        zIndex: 10,
-        borderRadius: 0,
-        height: '100vh',
-        overflowY: 'auto'
-      }}>
-        <div>
-          <button 
-            className="btn btn-outline" 
-            onClick={onClose}
-            style={{ width: '100%', borderColor: 'rgba(255,255,255,0.2)', color: '#fff', marginBottom: '1.5rem', justifyContent: 'center' }}
-          >
-            ✖ إغلاق المجهر
-          </button>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--color-primary)' }}>
-            مجهر ضوئي محاكي ثلاثي الأبعاد
-          </h2>
-          <p style={{ fontSize: '0.9rem', color: '#aaa', marginTop: '0.5rem', lineHeight: 1.5 }}>
-            قم بضبط عجلات التركيز (Focus) والإضاءة للحصول على رؤية واضحة للشريحة. يمكنك التبديل بين العدسات الشيئية لتكبير التفاصيل، وسحب الشريحة لاستكشافها.
-          </p>
+    <div className="microscope-simulator" role="dialog" aria-modal="true" aria-label="محاكي المجهر">
+      <aside className="microscope-control-deck">
+        <button className="microscope-close" onClick={onClose}>
+          <X size={18} strokeWidth={1.8} />
+          <span>إغلاق المجهر</span>
+        </button>
+
+        <div className="microscope-heading">
+          <span className="scope-kicker">Optical bench</span>
+          <h2>محاكي المجهر الضوئي</h2>
+          <p>{activeCell.title}</p>
         </div>
 
-        {/* Objective Lenses */}
-        <div className="control-group">
-          <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 600, color: '#ddd' }}>العدسات الشيئية (Zoom)</label>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {lenses.map((lens) => (
-              <button
-                key={lens.label}
-                onClick={() => setZoomLevel(lens.scale)}
-                style={{
-                  flex: 1,
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  backgroundColor: zoomLevel === lens.scale ? 'var(--color-primary)' : 'rgba(255,255,255,0.05)',
-                  color: zoomLevel === lens.scale ? '#fff' : '#aaa',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  transition: 'all 0.2s'
-                }}
-              >
-                {lens.label}
-              </button>
-            ))}
+        <div className="scope-status-grid">
+          <div>
+            <Aperture size={18} strokeWidth={1.8} />
+            <span>العدسة</span>
+            <strong>{activeLens.label}</strong>
+          </div>
+          <div>
+            <Crosshair size={18} strokeWidth={1.8} />
+            <span>التركيز</span>
+            <strong>{focusPercent}%</strong>
           </div>
         </div>
 
-        {/* Focus Knob */}
-        <div className="control-group">
-          <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontWeight: 600, color: '#ddd' }}>
-            <span>عجلة الضبط (Focus)</span>
+        <section className="scope-control-group">
+          <div className="scope-control-title">
+            <ScanLine size={18} strokeWidth={1.8} />
+            <span>العدسات الشيئية</span>
+          </div>
+          <div className="objective-wheel" aria-label="العدسات الشيئية">
+            {objectiveLenses.map((lens) => (
+              <button
+                key={lens.label}
+                className={zoomLevel === lens.scale ? 'objective-lens active' : 'objective-lens'}
+                onClick={() => setZoomLevel(lens.scale)}
+                style={{ '--lens-tint': lens.tint } as React.CSSProperties}
+              >
+                <strong>{lens.label}</strong>
+                <span>{lens.aperture}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="scope-control-group">
+          <div className="scope-control-title">
+            <Focus size={18} strokeWidth={1.8} />
+            <span>التركيز</span>
+          </div>
+          <label className="scope-slider">
+            <span>خشن</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={coarseFocus}
+              onChange={(event) => setCoarseFocus(Number(event.target.value))}
+            />
           </label>
-          <input 
-            type="range" 
-            min="0" max="100" 
-            value={focus} 
-            onChange={(e) => setFocus(Number(e.target.value))}
-            style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
-          />
-        </div>
-
-        {/* Lighting Knob */}
-        <div className="control-group">
-          <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontWeight: 600, color: '#ddd' }}>
-            <span>إضاءة المكثف (Illumination)</span>
+          <label className="scope-slider">
+            <span>دقيق</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={fineFocus}
+              onChange={(event) => setFineFocus(Number(event.target.value))}
+            />
           </label>
-          <input 
-            type="range" 
-            min="0" max="100" 
-            value={lighting} 
-            onChange={(e) => setLighting(Number(e.target.value))}
-            style={{ width: '100%', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
-          />
+        </section>
+
+        <section className="scope-control-group">
+          <div className="scope-control-title">
+            <Lightbulb size={18} strokeWidth={1.8} />
+            <span>الإضاءة والمكثف</span>
+          </div>
+          <label className="scope-slider">
+            <span>إضاءة</span>
+            <input
+              type="range"
+              min="8"
+              max="100"
+              value={lighting}
+              onChange={(event) => setLighting(Number(event.target.value))}
+            />
+          </label>
+          <label className="scope-slider">
+            <span>فتحة المكثف</span>
+            <input
+              type="range"
+              min="10"
+              max="100"
+              value={condenser}
+              onChange={(event) => setCondenser(Number(event.target.value))}
+            />
+          </label>
+        </section>
+
+        <section className="scope-control-group">
+          <div className="scope-control-title">
+            <Move size={18} strokeWidth={1.8} />
+            <span>منصة الشريحة</span>
+          </div>
+          <label className="scope-slider">
+            <span>X</span>
+            <input
+              type="range"
+              min="-1.4"
+              max="1.4"
+              step="0.05"
+              value={stage.x}
+              onChange={(event) => updateStage(Number(event.target.value), stage.y)}
+            />
+          </label>
+          <label className="scope-slider">
+            <span>Y</span>
+            <input
+              type="range"
+              min="-1.4"
+              max="1.4"
+              step="0.05"
+              value={stage.y}
+              onChange={(event) => updateStage(stage.x, Number(event.target.value))}
+            />
+          </label>
+        </section>
+
+        <button className="scope-reset" onClick={resetMicroscope}>
+          <RotateCcw size={18} strokeWidth={1.8} />
+          <span>إعادة معايرة</span>
+        </button>
+      </aside>
+
+      <main className="microscope-viewport">
+        <div className="microscope-body" aria-hidden="true">
+          <div className="microscope-ocular" />
+          <div className="microscope-arm" />
+          <div className="microscope-stage-piece" />
+          <div className="microscope-base" />
         </div>
 
-      </div>
+        <section className="eyepiece-module">
+          <div className="eyepiece-meta">
+            <span>{activeLens.label}</span>
+            <span>{activeLens.aperture}</span>
+            <span>F {Math.round(effectiveFocus)}</span>
+          </div>
 
-      {/* Eyepiece Viewport */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        position: 'relative',
-        backgroundImage: 'radial-gradient(circle at center, #1a1a1a 0%, #000 100%)',
-      }}>
-        
-        {/* The Eyepiece Circle */}
-        <div 
-          style={{
-            width: '80vmin',
-            height: '80vmin',
-            maxWidth: '800px',
-            maxHeight: '800px',
-            borderRadius: '50%',
-            overflow: 'hidden',
-            position: 'relative',
-            backgroundColor: '#000',
-            boxShadow: '0 0 0 2000px rgba(5,5,5,0.98), inset 0 0 80px rgba(0,0,0,0.9)',
-            border: '10px solid #111',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}
-        >
-          {/* 3D Simulated Microscope Scene */}
-          <MicroscopeScene 
-            cellData={activeCell} 
-            zoomLevel={zoomLevel} 
-            focus={focus} 
-            lighting={lighting} 
-          />
+          <div className="eyepiece-rim">
+            <div
+              className="eyepiece-field"
+              style={fieldStyle}
+              onPointerDown={handleFieldPointerDown}
+              onPointerMove={handleFieldPointerMove}
+              onPointerUp={handleFieldPointerUp}
+              onPointerCancel={handleFieldPointerUp}
+            >
+              <div className="microscope-canvas-focus">
+                <MicroscopeScene
+                  cellData={activeCell}
+                  zoomLevel={zoomLevel}
+                  focus={effectiveFocus}
+                  lighting={lighting}
+                  condenser={condenser}
+                  stageOffset={stage}
+                />
+              </div>
+              <div className="field-condenser" />
+              <div className="field-measure-grid" />
+              <div className="field-reticle" />
+              <div className="field-dust">
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="field-vignette" />
+            </div>
+          </div>
 
-          {/* Reticle / Crosshair Overlay */}
-          <div style={{
-            position: 'absolute',
-            top: 0, left: 0, right: 0, bottom: 0,
-            pointerEvents: 'none',
-            background: `
-              linear-gradient(rgba(0,0,0,0.5) 1px, transparent 1px) 50% 50% / 100% 1px no-repeat,
-              linear-gradient(90deg, rgba(0,0,0,0.5) 1px, transparent 1px) 50% 50% / 1px 100% no-repeat,
-              radial-gradient(circle, transparent 40%, rgba(0,0,0,0.4) 65%, rgba(0,0,0,0.95) 100%)
-            `,
-            zIndex: 5
-          }} />
-          
-          <div style={{
-            position: 'absolute',
-            top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '12px', height: '12px',
-            border: '1px solid rgba(0,0,0,0.8)',
-            borderRadius: '50%',
-            pointerEvents: 'none',
-            zIndex: 5
-          }} />
-        </div>
-        
-        {/* Caption */}
-        <div style={{
-          position: 'absolute',
-          bottom: '2rem',
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          padding: '1rem 2rem',
-          borderRadius: '30px',
-          color: '#fff',
-          border: '1px solid rgba(255,255,255,0.1)',
-          backdropFilter: 'blur(5px)',
-          fontWeight: 600,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
-        }}>
-          عرض مجهري: {activeCell.title}
-        </div>
-      </div>
+          <div className="slide-stage-readout">
+            <div>
+              <SlidersHorizontal size={17} strokeWidth={1.8} />
+              <span>الشريحة</span>
+              <strong>{activeCell.title}</strong>
+            </div>
+            <div className="stage-axis-readout">
+              <span>X {stage.x.toFixed(2)}</span>
+              <span>Y {stage.y.toFixed(2)}</span>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 };
-

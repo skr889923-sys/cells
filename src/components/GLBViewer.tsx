@@ -1,9 +1,62 @@
 import React, { Suspense, useEffect, useRef, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Stage, Float, Bounds, useBounds } from '@react-three/drei';
+import { OrbitControls, useGLTF, Stage, Float, Bounds, useBounds, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { CellData, Organelle } from '../data/cellsData';
+
+type OrbitControlsLike = {
+  target: THREE.Vector3;
+  update: () => void;
+  addEventListener: (type: 'start', listener: () => void) => void;
+  removeEventListener: (type: 'start', listener: () => void) => void;
+};
+
+type ModelPointerEvent = {
+  stopPropagation: () => void;
+  point: THREE.Vector3;
+};
+
+class ViewerErrorBoundary extends React.Component<
+  { resetKey: string; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="model-state model-state-error">
+          <strong>تعذر تحميل النموذج ثلاثي الأبعاد</strong>
+          <span>تحقق من مسار ملف النموذج أو أعد فتح الخلية لاحقاً.</span>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function ModelLoadingState() {
+  return (
+    <Html center>
+      <div className="model-state">
+        <span className="model-loader" />
+        <span>يتم تجهيز النموذج ثلاثي الأبعاد...</span>
+      </div>
+    </Html>
+  );
+}
 
 // Combined model + hotspots
 function CellModel({ 
@@ -11,48 +64,37 @@ function CellModel({
   cellData, 
   selectedOrganelleId, 
   onSelectOrganelle,
-  devMode,
   setLastClickedPoint
 }: { 
   url: string, 
   cellData: CellData, 
   selectedOrganelleId: string | null, 
   onSelectOrganelle: (id: string | null) => void,
-  devMode: boolean,
   setLastClickedPoint: (pt: [number, number, number]) => void
 }) {
-  const { scene } = useGLTF(url);
+  const { scene: sourceScene } = useGLTF(url);
+  const scene = useMemo(() => sourceScene.clone(true), [sourceScene]);
   const groupRef = useRef<THREE.Group>(null);
-
-  useEffect(() => {
+  const modelCenter = useMemo(() => {
     const box = new THREE.Box3().setFromObject(scene);
-    const center = box.getCenter(new THREE.Vector3());
-    scene.position.sub(center); // center the model at origin
-    
-    if (cellData.initialRotation) {
-      scene.rotation.set(cellData.initialRotation[0], cellData.initialRotation[1], cellData.initialRotation[2]);
-    } else {
-      scene.rotation.y = Math.PI; // default rotate 180°
-    }
-  }, [scene, cellData.id, cellData.initialRotation]); // re-run if cell changes
+    return box.getCenter(new THREE.Vector3()).multiplyScalar(-1);
+  }, [scene]);
+  const modelRotation = cellData.initialRotation ?? [0, Math.PI, 0] as [number, number, number];
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} position={modelCenter} rotation={modelRotation}>
       <primitive 
         object={scene} 
-        onPointerDown={(e: any) => {
+        onPointerDown={(e: ModelPointerEvent) => {
           e.stopPropagation();
-          const localPoint = scene.worldToLocal(e.point.clone());
+          const localPoint = groupRef.current?.worldToLocal(e.point.clone());
+          if (!localPoint) return;
           const pt: [number, number, number] = [
             Number(localPoint.x.toFixed(3)), 
             Number(localPoint.y.toFixed(3)), 
             Number(localPoint.z.toFixed(3))
           ];
           setLastClickedPoint(pt);
-          if (!devMode) {
-            const msg = `[${pt[0]}, ${pt[1]}, ${pt[2]}]`;
-            console.log("📍 Hotspot Coordinate:", msg);
-          }
         }} 
       />
       {cellData.organelles.map((org) => {
@@ -84,7 +126,8 @@ function CameraController({
   selectedOrganelleId: string | null,
   devMode: boolean
 }) {
-  const { controls, camera } = useThree();
+  const { controls } = useThree();
+  const orbitControls = controls as unknown as OrbitControlsLike | undefined;
   const bounds = useBounds();
   
   const targetPosition = useRef(new THREE.Vector3(0, 0, 8));
@@ -93,12 +136,12 @@ function CameraController({
 
   // Stop animation if the user tries to move the camera manually
   useEffect(() => {
-    if (controls) {
+    if (orbitControls) {
       const stopAnim = () => { isAnimating.current = false; };
-      controls.addEventListener('start', stopAnim);
-      return () => controls.removeEventListener('start', stopAnim);
+      orbitControls.addEventListener('start', stopAnim);
+      return () => orbitControls.removeEventListener('start', stopAnim);
     }
-  }, [controls]);
+  }, [orbitControls]);
 
   useEffect(() => {
     if (devMode) {
@@ -130,7 +173,8 @@ function CameraController({
         isAnimating.current = false;
         try {
           bounds.refresh().clip().fit();
-        } catch (_e) {
+        } catch {
+          isAnimating.current = false;
         }
       }
     }
@@ -139,8 +183,7 @@ function CameraController({
   useFrame((state, delta) => {
     if (isAnimating.current) {
       state.camera.position.lerp(targetPosition.current, 3 * delta);
-      if (controls) {
-        const orbitControls = controls as any;
+      if (orbitControls) {
         orbitControls.target.lerp(targetLookAt.current, 3 * delta);
         orbitControls.update();
         
@@ -224,11 +267,11 @@ function HotspotDot({
 // Component to extract camera info for developer
 function DevCameraTracker({ setCamInfo }: { setCamInfo: (pos: [number,number,number], tgt: [number,number,number]) => void }) {
   const { camera, controls } = useThree();
+  const orbitControls = controls as unknown as OrbitControlsLike | undefined;
   useFrame(() => {
-    if (controls) {
-      const orbit = controls as any;
+    if (orbitControls) {
       const cPos = camera.position;
-      const tPos = orbit.target;
+      const tPos = orbitControls.target;
       setCamInfo(
         [Number(cPos.x.toFixed(3)), Number(cPos.y.toFixed(3)), Number(cPos.z.toFixed(3))],
         [Number(tPos.x.toFixed(3)), Number(tPos.y.toFixed(3)), Number(tPos.z.toFixed(3))]
@@ -255,32 +298,41 @@ export const GLBViewer: React.FC<GLBViewerProps> = ({
   selectedOrganelleId,
   onSelectOrganelle
 }) => {
+  const canUseDevTools = import.meta.env.DEV && new URLSearchParams(window.location.search).get('dev') === '1';
   const [devMode, setDevMode] = useState(false);
   const [devPanelExpanded, setDevPanelExpanded] = useState(true);
   const [camPos, setCamPos] = useState<[number,number,number]>([0,0,0]);
   const [camTgt, setCamTgt] = useState<[number,number,number]>([0,0,0]);
   const [lastClickedPoint, setLastClickedPoint] = useState<[number,number,number]>([0,0,0]);
   
-  // Local state for dev edits
-  const [devCellData, setDevCellData] = useState<CellData>(cellData);
-
-  useEffect(() => {
-    setDevCellData(cellData);
-  }, [cellData]);
+  const [devOverrides, setDevOverrides] = useState<Record<string, Partial<CellData>>>({});
+  const devCellData = useMemo(() => {
+    const override = devOverrides[cellData.id];
+    return override ? { ...cellData, ...override } : cellData;
+  }, [cellData, devOverrides]);
 
   useEffect(() => {
     useGLTF.preload(modelUrl);
   }, [modelUrl]);
 
   const handleUpdateOrganelle = (orgId: string, updates: Partial<Organelle>) => {
-    setDevCellData(prev => ({
+    setDevOverrides(prev => ({
       ...prev,
-      organelles: prev.organelles.map(o => o.id === orgId ? { ...o, ...updates } : o)
+      [cellData.id]: {
+        ...prev[cellData.id],
+        organelles: devCellData.organelles.map(o => o.id === orgId ? { ...o, ...updates } : o)
+      }
     }));
   };
 
   const handleUpdateInitialRotation = (rot: [number,number,number]) => {
-    setDevCellData(prev => ({ ...prev, initialRotation: rot }));
+    setDevOverrides(prev => ({
+      ...prev,
+      [cellData.id]: {
+        ...prev[cellData.id],
+        initialRotation: rot
+      }
+    }));
   };
 
   const currentCamInfoStr = `[${camPos.join(', ')}]`;
@@ -291,8 +343,7 @@ export const GLBViewer: React.FC<GLBViewerProps> = ({
       style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, zIndex: 2 }}
       onClick={() => onSelectOrganelle(null)}
     >
-      {/* Dev Mode Overlay - Escaped from Canvas stacking context via Portal */}
-      {createPortal(
+      {canUseDevTools && createPortal(
         <div style={{ position: 'fixed', top: '20px', left: '20px', zIndex: 999999, maxHeight: '90vh', overflowY: 'auto' }}>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
             <button 
@@ -382,39 +433,40 @@ export const GLBViewer: React.FC<GLBViewerProps> = ({
         document.body
       )}
 
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0.3, 4], fov: 50 }}>
-        <Suspense fallback={null}>
-          <CameraController cellData={devCellData} selectedOrganelleId={selectedOrganelleId} devMode={devMode} />
-          {devMode && <DevCameraTracker setCamInfo={(p, t) => { setCamPos(p); setCamTgt(t); }} />}
-          
-          <Stage environment="city" intensity={lightingIntensity * 0.5} adjustCamera={false}>
-            <Float speed={devMode ? 0 : 1.5} rotationIntensity={devMode ? 0 : 0.15} floatIntensity={devMode ? 0 : 0.15}>
-              <Bounds fit clip observe margin={1.05}>
-                <CellModel 
-                  url={modelUrl}
-                  cellData={devCellData}
-                  selectedOrganelleId={selectedOrganelleId}
-                  onSelectOrganelle={onSelectOrganelle}
-                  devMode={devMode}
-                  setLastClickedPoint={setLastClickedPoint}
-                />
-              </Bounds>
-            </Float>
-          </Stage>
-          
-          <OrbitControls 
-            makeDefault
-            autoRotate={autoRotate && !selectedOrganelleId && !devMode} 
-            autoRotateSpeed={0.5} 
-            enablePan={true}
-            enableZoom={true}
-            enableDamping={true}
-            minDistance={0.1} 
-            maxDistance={50}
-            dampingFactor={0.05}
-          />
-        </Suspense>
-      </Canvas>
+      <ViewerErrorBoundary resetKey={modelUrl}>
+        <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0.3, 4], fov: 50 }}>
+          <Suspense fallback={<ModelLoadingState />}>
+            <CameraController cellData={devCellData} selectedOrganelleId={selectedOrganelleId} devMode={devMode} />
+            {devMode && <DevCameraTracker setCamInfo={(p, t) => { setCamPos(p); setCamTgt(t); }} />}
+            
+            <Stage environment="city" intensity={lightingIntensity * 0.5} adjustCamera={false}>
+              <Float speed={devMode ? 0 : 1.5} rotationIntensity={devMode ? 0 : 0.15} floatIntensity={devMode ? 0 : 0.15}>
+                <Bounds fit clip observe margin={1.05}>
+                  <CellModel 
+                    url={modelUrl}
+                    cellData={devCellData}
+                    selectedOrganelleId={selectedOrganelleId}
+                    onSelectOrganelle={onSelectOrganelle}
+                    setLastClickedPoint={setLastClickedPoint}
+                  />
+                </Bounds>
+              </Float>
+            </Stage>
+            
+            <OrbitControls 
+              makeDefault
+              autoRotate={autoRotate && !selectedOrganelleId && !devMode} 
+              autoRotateSpeed={0.5} 
+              enablePan={true}
+              enableZoom={true}
+              enableDamping={true}
+              minDistance={0.1} 
+              maxDistance={50}
+              dampingFactor={0.05}
+            />
+          </Suspense>
+        </Canvas>
+      </ViewerErrorBoundary>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Palette, Rotate3D, RotateCcw, SunMedium } from 'lucide-react';
 
 interface BottomToolbarProps {
   onReset: () => void;
@@ -18,7 +19,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
   return (
     <div className="glass-panel bottom-toolbar" style={{ borderRadius: '30px', padding: '0.5rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', whiteSpace: 'nowrap' }}>
       <button onClick={onReset} className="btn btn-outline" style={{ flexDirection: 'column', gap: '0.2rem', padding: '0.5rem', border: 'none' }}>
-        <span style={{ fontSize: '1.2rem' }}>↺</span>
+        <RotateCcw size={18} strokeWidth={1.8} />
         <span style={{ fontSize: '0.7rem', color: 'var(--color-text-main)', fontWeight: 600 }}>إعادة ضبط</span>
       </button>
 
@@ -26,8 +27,19 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
       <div style={{ width: '1px', height: '30px', backgroundColor: 'var(--color-border)', margin: '0 0.5rem' }}></div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <button
+          type="button"
+          onClick={() => setAutoRotate(!autoRotate)}
+          className={`btn btn-outline ${autoRotate ? 'active' : ''}`}
+          style={{ padding: '0.55rem 0.8rem', border: '1px solid var(--color-border)' }}
+          aria-pressed={autoRotate}
+        >
+          <Rotate3D size={18} strokeWidth={1.8} />
+          <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>الدوران</span>
+        </button>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.2rem' }}>☀️</span>
+          <SunMedium size={18} strokeWidth={1.8} />
           <span style={{ fontSize: '0.7rem', color: 'var(--color-text-main)', fontWeight: 600 }}>الإضاءة</span>
           <input 
             type="range" 
@@ -39,7 +51,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem' }}>
-          <span style={{ fontSize: '1.2rem' }}>🎨</span>
+          <Palette size={18} strokeWidth={1.8} />
           <span style={{ fontSize: '0.7rem', color: 'var(--color-text-main)', fontWeight: 600 }}>اللون</span>
           <div style={{ display: 'flex', gap: '0.3rem', marginLeft: '0.5rem' }}>
             {colors.map(color => (

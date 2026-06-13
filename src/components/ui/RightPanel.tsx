@@ -14,7 +14,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({ activeCell, selectedOrga
 
   return (
     <div className="floating-panel right-panel">
-      <div className="glass-panel" style={{ 
+      <div className="glass-panel organelles-panel" style={{ 
         padding: '1.5rem', borderRadius: '20px', width: '320px', 
         maxHeight: '75vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem'
       }}>

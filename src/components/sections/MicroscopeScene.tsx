@@ -1,8 +1,6 @@
-import React, { Suspense, useEffect, useRef } from 'react';
+import React, { Suspense, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { useGLTF, Float, Sparkles, OrbitControls } from '@react-three/drei';
-import { EffectComposer, DepthOfField, Vignette, Noise, ChromaticAberration } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
 import * as THREE from 'three';
 import type { CellData } from '../../data/cellsData';
 
@@ -11,34 +9,53 @@ interface MicroscopeSceneProps {
   zoomLevel: number; // 1, 2.5, 5
   focus: number; // 0 to 100, 50 is perfect focus
   lighting: number; // 0 to 100, 50 is default
+  condenser: number;
+  stageOffset: { x: number; y: number };
 }
 
-function CellModel({ url, cellData }: { url: string, cellData: CellData }) {
-  const { scene } = useGLTF(url);
-  
-  useEffect(() => {
-    // Center the model
+function CellModel({
+  url,
+  cellData,
+  stageOffset,
+  sampleScale,
+  focusBias
+}: {
+  url: string;
+  cellData: CellData;
+  stageOffset: { x: number; y: number };
+  sampleScale: number;
+  focusBias: number;
+}) {
+  const { scene: sourceScene } = useGLTF(url);
+  const scene = useMemo(() => sourceScene.clone(true), [sourceScene]);
+  const modelCenter = useMemo(() => {
     const box = new THREE.Box3().setFromObject(scene);
-    const center = box.getCenter(new THREE.Vector3());
-    scene.position.sub(center);
-    
-    // Apply initial rotation if it exists
-    if (cellData.initialRotation) {
-      scene.rotation.set(cellData.initialRotation[0], cellData.initialRotation[1], cellData.initialRotation[2]);
-    } else {
-      scene.rotation.y = Math.PI;
-    }
-  }, [scene, cellData]);
+    return box.getCenter(new THREE.Vector3()).multiplyScalar(-1);
+  }, [scene]);
+  const microscopeAnchor = cellData.organelles[0]?.position ?? [0, 0, 0];
+  const modelRotation = cellData.initialRotation ?? [0, Math.PI, 0] as [number, number, number];
 
-  return <primitive object={scene} />;
+  return (
+    <group
+      position={[
+        modelCenter.x + stageOffset.x - microscopeAnchor[0] * sampleScale * focusBias,
+        modelCenter.y + stageOffset.y - microscopeAnchor[1] * sampleScale * focusBias,
+        modelCenter.z
+      ]}
+      rotation={modelRotation}
+      scale={sampleScale}
+    >
+      <primitive object={scene} />
+    </group>
+  );
 }
 
 // Custom camera controller to handle zoom smoothly
 function MicroscopeCamera({ zoomLevel }: { zoomLevel: number }) {
   useFrame((state) => {
     // We map zoomLevel (1, 2.5, 5) to camera distance.
-    // 1x = z: 3, 2.5x = z: 1.5, 5x = z: 0.8
-    const targetZ = zoomLevel === 1 ? 3 : zoomLevel === 2.5 ? 1.5 : 0.8;
+    // 1x = z: 2.45, 2.5x = z: 1.25, 5x = z: 0.62
+    const targetZ = zoomLevel === 1 ? 2.45 : zoomLevel === 2.5 ? 1.25 : 0.62;
     state.camera.position.lerp(new THREE.Vector3(0, 0, targetZ), 0.05);
   });
   return null;
@@ -48,15 +65,19 @@ export const MicroscopeScene: React.FC<MicroscopeSceneProps> = ({
   cellData, 
   zoomLevel, 
   focus, 
-  lighting 
+  lighting,
+  condenser,
+  stageOffset
 }) => {
   // Convert 0-100 lighting to Three.js intensity
-  const lightIntensity = (lighting / 50) * 1.5; 
+  const lightIntensity = (lighting / 50) * 1.5;
+  const condenserFactor = Math.max(condenser / 100, 0.12);
+  const sampleScale = zoomLevel === 1 ? 1.8 : zoomLevel === 2.5 ? 2.2 : 2.75;
+  const focusBias = zoomLevel === 1 ? 0.22 : zoomLevel === 2.5 ? 0.82 : 1.08;
   
-  // Convert 0-100 focus to DepthOfField focus distance and blur
-  // Perfect focus is at 50. 
+  // Perfect focus is at 50.
   const isOutOfFocus = Math.abs(focus - 50) > 5;
-  const blurStrength = Math.abs(focus - 50) * 0.02; // Max blur 1.0
+  const blurStrength = Math.min(Math.abs(focus - 50) * 0.03, 1.2);
 
   return (
     <Canvas 
@@ -67,9 +88,16 @@ export const MicroscopeScene: React.FC<MicroscopeSceneProps> = ({
       <color attach="background" args={['#05080a']} />
       
       {/* Lighting */}
-      <ambientLight intensity={lightIntensity * 0.5} />
-      <directionalLight position={[5, 5, 5]} intensity={lightIntensity} />
-      <pointLight position={[-5, -5, -5]} intensity={lightIntensity * 0.5} color="#4488ff" />
+      <ambientLight intensity={lightIntensity * (0.24 + condenserFactor * 0.32)} />
+      <directionalLight position={[5, 5, 5]} intensity={lightIntensity * 0.62} />
+      <pointLight position={[-5, -5, -5]} intensity={lightIntensity * 0.28} color="#8ab7ff" />
+      <spotLight
+        position={[0, 0, 3.8]}
+        angle={0.26 + condenserFactor * 0.42}
+        penumbra={0.85}
+        intensity={lightIntensity * 1.8}
+        color="#f7fbff"
+      />
 
       <Suspense fallback={null}>
         {/* The Microscopic Environment */}
@@ -80,16 +108,36 @@ export const MicroscopeScene: React.FC<MicroscopeSceneProps> = ({
           floatingRange={[-0.1, 0.1]}
         >
           {cellData.modelUrl && (
-            <CellModel url={cellData.modelUrl} cellData={cellData} />
+            <CellModel
+              url={cellData.modelUrl}
+              cellData={cellData}
+              stageOffset={stageOffset}
+              sampleScale={sampleScale}
+              focusBias={focusBias}
+            />
           )}
         </Float>
 
         {/* Ambient Particles representing cellular fluid/dust */}
         <Float speed={1} rotationIntensity={0.5} floatIntensity={1}>
-          <Sparkles count={300} scale={5} size={2} speed={0.4} opacity={0.2} color="#88ccff" />
+          <Sparkles
+            count={zoomLevel === 5 ? 180 : 300}
+            scale={5}
+            size={zoomLevel === 5 ? 1.2 : 2}
+            speed={0.4}
+            opacity={0.08 + condenserFactor * 0.14}
+            color="#88ccff"
+          />
         </Float>
         <Float speed={1.5} rotationIntensity={1} floatIntensity={0.5}>
-          <Sparkles count={150} scale={4} size={3} speed={0.6} opacity={0.15} color="#aaffaa" />
+          <Sparkles
+            count={zoomLevel === 1 ? 150 : 90}
+            scale={4}
+            size={2.4}
+            speed={0.6}
+            opacity={0.05 + condenserFactor * 0.1}
+            color="#b6ffbf"
+          />
         </Float>
 
         <MicroscopeCamera zoomLevel={zoomLevel} />
@@ -102,28 +150,14 @@ export const MicroscopeScene: React.FC<MicroscopeSceneProps> = ({
           panSpeed={0.5}
         />
 
-        {/* Realistic Microscope Lens Effects */}
-        <EffectComposer disableNormalPass>
-          {/* Depth of Field for Focus Knob */}
-          <DepthOfField 
-            focusDistance={0} 
-            focalLength={0.02} 
-            bokehScale={isOutOfFocus ? blurStrength * 10 : 0} 
-            height={480} 
+        <mesh position={[0, 0, -2]}>
+          <planeGeometry args={[8, 8]} />
+          <meshBasicMaterial
+            color="#05080a"
+            transparent
+            opacity={isOutOfFocus ? blurStrength * 0.15 : 0.02}
           />
-          
-          {/* Lens Color Fringing */}
-          <ChromaticAberration 
-            blendFunction={BlendFunction.NORMAL} 
-            offset={new THREE.Vector2(0.002, 0.002)} 
-          />
-          
-          {/* Microscope Noise */}
-          <Noise premultiply blendFunction={BlendFunction.ADD} opacity={0.15} />
-          
-          {/* Dark edges of the eyepiece */}
-          <Vignette eskil={false} offset={0.3} darkness={0.9} blendFunction={BlendFunction.NORMAL} />
-        </EffectComposer>
+        </mesh>
       </Suspense>
     </Canvas>
   );
