@@ -11,6 +11,7 @@ interface MicroscopeSceneProps {
   lighting: number; // 0 to 100, 50 is default
   condenser: number;
   stageOffset: { x: number; y: number };
+  sampleRotation: { x: number; y: number; z: number };
 }
 
 function CellModel({
@@ -18,13 +19,15 @@ function CellModel({
   cellData,
   stageOffset,
   sampleScale,
-  focusBias
+  focusBias,
+  sampleRotation
 }: {
   url: string;
   cellData: CellData;
   stageOffset: { x: number; y: number };
   sampleScale: number;
   focusBias: number;
+  sampleRotation: { x: number; y: number; z: number };
 }) {
   const { scene: sourceScene } = useGLTF(url);
   const scene = useMemo(() => sourceScene.clone(true), [sourceScene]);
@@ -33,7 +36,12 @@ function CellModel({
     return box.getCenter(new THREE.Vector3()).multiplyScalar(-1);
   }, [scene]);
   const microscopeAnchor = cellData.organelles[0]?.position ?? [0, 0, 0];
-  const modelRotation = cellData.initialRotation ?? [0, Math.PI, 0] as [number, number, number];
+  const modelRotation = (cellData.initialRotation ?? [0, Math.PI, 0]) as [number, number, number];
+  const rotationOffset = [
+    THREE.MathUtils.degToRad(sampleRotation.x),
+    THREE.MathUtils.degToRad(sampleRotation.y),
+    THREE.MathUtils.degToRad(sampleRotation.z)
+  ] as [number, number, number];
 
   return (
     <group
@@ -42,7 +50,11 @@ function CellModel({
         modelCenter.y + stageOffset.y - microscopeAnchor[1] * sampleScale * focusBias,
         modelCenter.z
       ]}
-      rotation={modelRotation}
+      rotation={[
+        modelRotation[0] + rotationOffset[0],
+        modelRotation[1] + rotationOffset[1],
+        modelRotation[2] + rotationOffset[2]
+      ]}
       scale={sampleScale}
     >
       <primitive object={scene} />
@@ -67,7 +79,8 @@ export const MicroscopeScene: React.FC<MicroscopeSceneProps> = ({
   focus, 
   lighting,
   condenser,
-  stageOffset
+  stageOffset,
+  sampleRotation
 }) => {
   // Convert 0-100 lighting to Three.js intensity
   const lightIntensity = (lighting / 50) * 1.5;
@@ -114,6 +127,7 @@ export const MicroscopeScene: React.FC<MicroscopeSceneProps> = ({
               stageOffset={stageOffset}
               sampleScale={sampleScale}
               focusBias={focusBias}
+              sampleRotation={sampleRotation}
             />
           )}
         </Float>
@@ -146,8 +160,7 @@ export const MicroscopeScene: React.FC<MicroscopeSceneProps> = ({
         <OrbitControls 
           enableRotate={false} 
           enableZoom={false} 
-          enablePan={true} 
-          panSpeed={0.5}
+          enablePan={false}
         />
 
         <mesh position={[0, 0, -2]}>

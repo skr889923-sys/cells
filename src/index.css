@@ -680,6 +680,36 @@ input:focus-visible {
   font-weight: 900;
 }
 
+.scope-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.scope-mode-toggle button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.055);
+  color: rgba(244,247,251,0.72);
+  font-family: var(--font-arabic-ui);
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.scope-mode-toggle button:hover,
+.scope-mode-toggle button.active {
+  transform: translateY(-1px);
+  border-color: rgba(130,182,233,0.56);
+  background: rgba(106,169,232,0.16);
+  color: #f7fafc;
+}
+
 .objective-wheel {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -852,6 +882,14 @@ input:focus-visible {
 }
 
 .eyepiece-field:active {
+  cursor: grabbing;
+}
+
+.eyepiece-field.is-rotating-sample {
+  cursor: ew-resize;
+}
+
+.eyepiece-field.is-rotating-sample:active {
   cursor: grabbing;
 }
 

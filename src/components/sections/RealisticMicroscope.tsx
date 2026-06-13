@@ -25,7 +25,13 @@ interface ObjectiveLens {
   tint: string;
 }
 
+type InteractionMode = 'move' | 'rotate';
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const normalizeAngle = (value: number) => {
+  const normalized = ((value + 180) % 360 + 360) % 360 - 180;
+  return Number(normalized.toFixed(1));
+};
 
 const objectiveLenses: ObjectiveLens[] = [
   { label: '10x', scale: 1, aperture: 'NA 0.25', tint: '#5c9ce6' },
@@ -39,13 +45,17 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
   const [fineFocus, setFineFocus] = useState<number>(50);
   const [lighting, setLighting] = useState<number>(58);
   const [condenser, setCondenser] = useState<number>(62);
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>('move');
   const [stage, setStage] = useState({ x: 0, y: 0 });
+  const [sampleRotation, setSampleRotation] = useState({ x: 0, y: 0, z: 0 });
   const dragRef = useRef<{
     pointerId: number;
     x: number;
     y: number;
     stageX: number;
     stageY: number;
+    rotationX: number;
+    rotationY: number;
   } | null>(null);
 
   const activeLens = useMemo(
@@ -73,6 +83,14 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
     });
   };
 
+  const updateSampleRotation = (nextX: number, nextY: number, nextZ = sampleRotation.z) => {
+    setSampleRotation({
+      x: clamp(Number(nextX.toFixed(1)), -68, 68),
+      y: normalizeAngle(nextY),
+      z: normalizeAngle(nextZ)
+    });
+  };
+
   const handleFieldPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
@@ -80,13 +98,22 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
       x: event.clientX,
       y: event.clientY,
       stageX: stage.x,
-      stageY: stage.y
+      stageY: stage.y,
+      rotationX: sampleRotation.x,
+      rotationY: sampleRotation.y
     };
   };
 
   const handleFieldPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    if (interactionMode === 'rotate') {
+      updateSampleRotation(
+        drag.rotationX + (event.clientY - drag.y) * 0.28,
+        drag.rotationY + (event.clientX - drag.x) * 0.42
+      );
+      return;
+    }
     const sensitivity = zoomLevel === 5 ? 230 : zoomLevel === 2.5 ? 170 : 130;
     updateStage(
       drag.stageX + (event.clientX - drag.x) / sensitivity,
@@ -106,7 +133,9 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
     setFineFocus(50);
     setLighting(58);
     setCondenser(62);
+    setInteractionMode('move');
     setStage({ x: 0, y: 0 });
+    setSampleRotation({ x: 0, y: 0, z: 0 });
   };
 
   return (
@@ -213,6 +242,31 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
         <section className="scope-control-group">
           <div className="scope-control-title">
             <Move size={18} strokeWidth={1.8} />
+            <span>السحب داخل العدسة</span>
+          </div>
+          <div className="scope-mode-toggle" role="group" aria-label="طريقة السحب داخل العدسة">
+            <button
+              type="button"
+              className={interactionMode === 'move' ? 'active' : ''}
+              onClick={() => setInteractionMode('move')}
+            >
+              <Move size={16} strokeWidth={1.9} />
+              <span>تحريك</span>
+            </button>
+            <button
+              type="button"
+              className={interactionMode === 'rotate' ? 'active' : ''}
+              onClick={() => setInteractionMode('rotate')}
+            >
+              <RotateCcw size={16} strokeWidth={1.9} />
+              <span>تدوير</span>
+            </button>
+          </div>
+        </section>
+
+        <section className="scope-control-group">
+          <div className="scope-control-title">
+            <SlidersHorizontal size={18} strokeWidth={1.8} />
             <span>منصة الشريحة</span>
           </div>
           <label className="scope-slider">
@@ -239,6 +293,46 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
           </label>
         </section>
 
+        <section className="scope-control-group">
+          <div className="scope-control-title">
+            <RotateCcw size={18} strokeWidth={1.8} />
+            <span>اتجاه العينة</span>
+          </div>
+          <label className="scope-slider">
+            <span>ميل</span>
+            <input
+              type="range"
+              min="-68"
+              max="68"
+              step="1"
+              value={sampleRotation.x}
+              onChange={(event) => updateSampleRotation(Number(event.target.value), sampleRotation.y)}
+            />
+          </label>
+          <label className="scope-slider">
+            <span>لف</span>
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              value={sampleRotation.y}
+              onChange={(event) => updateSampleRotation(sampleRotation.x, Number(event.target.value))}
+            />
+          </label>
+          <label className="scope-slider">
+            <span>دوران</span>
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              value={sampleRotation.z}
+              onChange={(event) => updateSampleRotation(sampleRotation.x, sampleRotation.y, Number(event.target.value))}
+            />
+          </label>
+        </section>
+
         <button className="scope-reset" onClick={resetMicroscope}>
           <RotateCcw size={18} strokeWidth={1.8} />
           <span>إعادة معايرة</span>
@@ -258,11 +352,12 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
             <span>{activeLens.label}</span>
             <span>{activeLens.aperture}</span>
             <span>F {Math.round(effectiveFocus)}</span>
+            <span>{interactionMode === 'move' ? 'XY' : 'ROT'}</span>
           </div>
 
           <div className="eyepiece-rim">
             <div
-              className="eyepiece-field"
+              className={interactionMode === 'rotate' ? 'eyepiece-field is-rotating-sample' : 'eyepiece-field'}
               style={fieldStyle}
               onPointerDown={handleFieldPointerDown}
               onPointerMove={handleFieldPointerMove}
@@ -277,6 +372,7 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
                   lighting={lighting}
                   condenser={condenser}
                   stageOffset={stage}
+                  sampleRotation={sampleRotation}
                 />
               </div>
               <div className="field-condenser" />
@@ -303,6 +399,7 @@ export const RealisticMicroscope: React.FC<RealisticMicroscopeProps> = ({ active
             <div className="stage-axis-readout">
               <span>X {stage.x.toFixed(2)}</span>
               <span>Y {stage.y.toFixed(2)}</span>
+              <span>R {Math.round(sampleRotation.y)}°</span>
             </div>
           </div>
         </section>
